@@ -7,7 +7,8 @@ import {
   Dumbbell,
   Home,
   Sparkles,
-  Target
+  Target,
+  History
 } from "lucide-react";
 
 const nav = [
@@ -17,6 +18,7 @@ const nav = [
   { href: "/dashboard/habits", label: "Habits", icon: CheckSquare },
   { href: "/dashboard/skills", label: "Skills", icon: Sparkles },
   { href: "/dashboard/goals", label: "Goals", icon: Target },
+  { href: "/dashboard/history", label: "History", icon: History },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 }
 ];
 

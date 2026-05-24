@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
+import { createClient } from "@/lib/supabase/browser";
 
 type Theme = "light" | "dark" | "system";
 
@@ -36,6 +37,36 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     setThemeState(initialTheme);
     applyTheme(resolvedTheme);
+
+    const supabase = createClient();
+    async function authenticateGuest() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: "guest@lifetrack.com",
+            password: "guestpassword123"
+          });
+          
+          if (signInError) {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email: "guest@lifetrack.com",
+              password: "guestpassword123"
+            });
+            if (!signUpError) {
+              window.location.reload();
+            } else {
+              console.error("Guest registration failed:", signUpError);
+            }
+          } else {
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        console.error("Auto-authentication error:", err);
+      }
+    }
+    authenticateGuest();
   }, []);
 
   useEffect(() => {

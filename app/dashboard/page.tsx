@@ -12,32 +12,28 @@ import { Brain, Dumbbell, Flame, Gauge, Sparkles } from "lucide-react";
 export default async function DashboardPage() {
   const { stats, weekly, goals } = await getDashboardData().catch(() => ({
     stats: {
-      studyMinutesToday: 120,
-      workoutCompletionRate: 75,
-      skillsLearnedThisWeek: 3,
-      productivityScore: 68,
-      level: 3,
-      xp: 385,
-      nextLevelXp: 720,
-      dailyStreak: 5,
-      workoutsToday: 1,
-      completedHabitsCount: 5,
-      totalHabitsCount: 7
+      studyMinutesToday: 0,
+      workoutCompletionRate: 0,
+      skillsLearnedThisWeek: 0,
+      productivityScore: 0,
+      level: 1,
+      xp: 0,
+      nextLevelXp: 100,
+      dailyStreak: 0,
+      workoutsToday: 0,
+      completedHabitsCount: 0,
+      totalHabitsCount: 0
     },
     weekly: [
-      { day: "Mon", study: 120, workout: 1 },
-      { day: "Tue", study: 90, workout: 0 },
-      { day: "Wed", study: 150, workout: 1 },
-      { day: "Thu", study: 60, workout: 0 },
-      { day: "Fri", study: 180, workout: 1 },
-      { day: "Sat", study: 45, workout: 0 },
+      { day: "Mon", study: 0, workout: 0 },
+      { day: "Tue", study: 0, workout: 0 },
+      { day: "Wed", study: 0, workout: 0 },
+      { day: "Thu", study: 0, workout: 0 },
+      { day: "Fri", study: 0, workout: 0 },
+      { day: "Sat", study: 0, workout: 0 },
       { day: "Sun", study: 0, workout: 0 }
     ],
-    goals: [
-      { id: "1", title: "Learn TypeScript", progress: 65, priority: "high", deadline: "2026-06-01" },
-      { id: "2", title: "Run 5K", progress: 40, priority: "medium", deadline: "2026-05-15" },
-      { id: "3", title: "Read 12 books", progress: 25, priority: "low", deadline: "2026-12-31" }
-    ]
+    goals: []
   }));
 
   return (
