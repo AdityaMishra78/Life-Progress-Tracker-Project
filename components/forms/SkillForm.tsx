@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { QuickAuth } from "@/components/dashboard/QuickAuth";
 
 interface SkillFormProps {
   onSuccess?: () => void;
@@ -17,6 +18,20 @@ export function SkillForm({ onSuccess }: SkillFormProps) {
   const [targetHours, setTargetHours] = useState(100);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [user, setUser] = useState<any>(null);
+  const [userLoading, setUserLoading] = useState(true);
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+    setUserLoading(false);
+  }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,6 +78,20 @@ export function SkillForm({ onSuccess }: SkillFormProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (userLoading) {
+    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
+  }
+
+  if (!user) {
+    return (
+      <QuickAuth
+        title="Activate Skill Tracker"
+        description="Verify your workspace to measure hours logged and track skill progression."
+        onSuccess={checkUser}
+      />
+    );
   }
 
   return (

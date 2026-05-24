@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { QuickAuth } from "@/components/dashboard/QuickAuth";
 
 interface StudySessionFormProps {
   onSuccess?: () => void;
@@ -19,20 +20,27 @@ export function StudySessionForm({ onSuccess }: StudySessionFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [subjectsList, setSubjectsList] = useState<{ id: string; name: string }[]>([]);
 
-  useEffect(() => {
-    async function loadSubjects() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from("subjects")
-          .select("id, name")
-          .eq("user_id", user.id);
-        if (data) setSubjectsList(data);
-      }
+  const [user, setUser] = useState<any>(null);
+  const [userLoading, setUserLoading] = useState(true);
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+    setUserLoading(false);
+    
+    if (authUser) {
+      const { data } = await supabase
+        .from("subjects")
+        .select("id, name")
+        .eq("user_id", authUser.id);
+      if (data) setSubjectsList(data);
     }
-    loadSubjects();
   }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -106,6 +114,20 @@ export function StudySessionForm({ onSuccess }: StudySessionFormProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (userLoading) {
+    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
+  }
+
+  if (!user) {
+    return (
+      <QuickAuth
+        title="Activate Study Tracker"
+        description="Verify your workspace to record focus hours, subjects, and study sessions."
+        onSuccess={checkUser}
+      />
+    );
   }
 
   return (

@@ -43,6 +43,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
+          // 1. Try anonymous sign-in first (no verification, no passwords needed!)
+          const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
+          
+          if (!anonError && anonData.user) {
+            window.location.reload();
+            return;
+          }
+
+          // 2. Fallback to pre-registered guest credentials if anonymous is disabled
           const { error: signInError } = await supabase.auth.signInWithPassword({
             email: "guest@lifetrack.com",
             password: "guestpassword123"
@@ -56,7 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             if (!signUpError) {
               window.location.reload();
             } else {
-              console.error("Guest registration failed:", signUpError);
+              console.error("Auto-authentication could not be completed:", signUpError);
             }
           } else {
             window.location.reload();

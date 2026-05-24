@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { QuickAuth } from "@/components/dashboard/QuickAuth";
 
 interface HabitFormProps {
   onSuccess?: () => void;
@@ -18,6 +19,20 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
   const [color, setColor] = useState("#22c55e");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [user, setUser] = useState<any>(null);
+  const [userLoading, setUserLoading] = useState(true);
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+    setUserLoading(false);
+  }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   const colors = ["#22c55e", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
@@ -64,6 +79,20 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (userLoading) {
+    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
+  }
+
+  if (!user) {
+    return (
+      <QuickAuth
+        title="Activate Habit Tracker"
+        description="Verify your workspace to establish consistency and log recurring habits."
+        onSuccess={checkUser}
+      />
+    );
   }
 
   return (

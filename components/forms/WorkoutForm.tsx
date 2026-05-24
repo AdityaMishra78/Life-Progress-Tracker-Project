@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { QuickAuth } from "@/components/dashboard/QuickAuth";
 
 interface WorkoutFormProps {
   onSuccess?: () => void;
@@ -17,6 +18,20 @@ export function WorkoutForm({ onSuccess }: WorkoutFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [user, setUser] = useState<any>(null);
+  const [userLoading, setUserLoading] = useState(true);
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+    setUserLoading(false);
+  }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
@@ -29,16 +44,16 @@ export function WorkoutForm({ onSuccess }: WorkoutFormProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      if (!user) {
+      if (!currentUser) {
         throw new Error("You must be logged in to log a workout");
       }
 
       const { error: insertError } = await supabase.from("workout_logs").insert({
         title: title.trim(),
         duration_minutes: duration,
-        user_id: user.id,
+        user_id: currentUser.id,
         completed_at: new Date().toISOString()
       });
 
@@ -55,6 +70,20 @@ export function WorkoutForm({ onSuccess }: WorkoutFormProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (userLoading) {
+    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
+  }
+
+  if (!user) {
+    return (
+      <QuickAuth
+        title="Activate Workout Tracker"
+        description="Verify your workspace to record workouts, reps, and sets."
+        onSuccess={checkUser}
+      />
+    );
   }
 
   return (
