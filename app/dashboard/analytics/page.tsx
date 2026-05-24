@@ -6,8 +6,9 @@ import { WeeklyChart } from "@/components/analytics/WeeklyChart";
 import { BalanceChart } from "@/components/analytics/BalanceChart";
 import { Heatmap } from "@/components/analytics/Heatmap";
 import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { Brain, Dumbbell, CheckSquare, TrendingUp, Download } from "lucide-react";
+import { createClient } from "@/lib/supabase/browser";
+import { localDb } from "@/lib/localDb";
 
 function exportData(table: string) {
   const link = document.createElement("a");
@@ -23,12 +24,20 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function loadAnalytics() {
       try {
-        const res = await fetch("/api/analytics");
-        if (!res.ok) throw new Error("Failed to fetch analytics");
-        const data = await res.json();
-        setAnalytics(data);
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          const res = await fetch("/api/analytics");
+          if (!res.ok) throw new Error("Failed to fetch analytics");
+          const data = await res.json();
+          setAnalytics(data);
+        } else {
+          setAnalytics(localDb.getAnalyticsData());
+        }
       } catch (err) {
         console.error("Failed to load analytics data:", err);
+        setAnalytics(localDb.getAnalyticsData());
       } finally {
         setLoading(false);
       }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
-import { QuickAuth } from "@/components/dashboard/QuickAuth";
+import { localDb } from "@/lib/localDb";
 
 interface GoalFormProps {
   onSuccess?: () => void;
@@ -21,13 +21,11 @@ export function GoalForm({ onSuccess }: GoalFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [user, setUser] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
 
   const checkUser = useCallback(async () => {
     const supabase = createClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();
     setUser(authUser);
-    setUserLoading(false);
   }, []);
 
   useEffect(() => {
@@ -46,24 +44,24 @@ export function GoalForm({ onSuccess }: GoalFormProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-      if (!user) {
-        throw new Error("You must be logged in to add a goal");
+      if (currentUser) {
+        const { error: insertError } = await supabase.from("goals").insert({
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          priority,
+          deadline: deadline || null,
+          progress: 0,
+          completed: false,
+          user_id: currentUser.id
+        });
+
+        if (insertError) throw insertError;
+      } else {
+        localDb.saveGoal(title.trim(), description.trim(), category, priority, deadline);
       }
-
-      const { error: insertError } = await supabase.from("goals").insert({
-        title: title.trim(),
-        description: description.trim(),
-        category,
-        priority,
-        deadline: deadline || null,
-        progress: 0,
-        completed: false,
-        user_id: user.id
-      });
-
-      if (insertError) throw insertError;
 
       setTitle("");
       setDescription("");
@@ -78,20 +76,6 @@ export function GoalForm({ onSuccess }: GoalFormProps) {
     } finally {
       setLoading(false);
     }
-  }
-
-  if (userLoading) {
-    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
-  }
-
-  if (!user) {
-    return (
-      <QuickAuth
-        title="Activate Goal Tracker"
-        description="Verify your workspace to set milestones and log target-oriented goals."
-        onSuccess={checkUser}
-      />
-    );
   }
 
   return (

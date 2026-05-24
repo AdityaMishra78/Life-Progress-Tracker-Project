@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { Target, Trash2, Calendar, Award, Plus, Minus, Check } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/Badge";
+import { localDb } from "@/lib/localDb";
 
 export default function GoalsPage() {
   const router = useRouter();
@@ -21,18 +22,22 @@ export default function GoalsPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      
+      if (user) {
+        const { data, error } = await supabase
+          .from("goals")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("goals")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setGoals(data || []);
+        if (error) throw error;
+        setGoals(data || []);
+      } else {
+        setGoals(localDb.getGoals());
+      }
     } catch (err) {
       console.error("Error fetching goals:", err);
+      setGoals(localDb.getGoals());
     } finally {
       setLoading(false);
     }
@@ -48,12 +53,18 @@ export default function GoalsPage() {
     
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("goals")
-        .update({ progress: nextProgress, completed })
-        .eq("id", goalId);
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (error) throw error;
+      if (user) {
+        const { error } = await supabase
+          .from("goals")
+          .update({ progress: nextProgress, completed })
+          .eq("id", goalId);
+
+        if (error) throw error;
+      } else {
+        localDb.updateGoalProgress(goalId, nextProgress);
+      }
 
       setGoals((prev) =>
         prev.map((g) => (g.id === goalId ? { ...g, progress: nextProgress, completed } : g))
@@ -68,8 +79,14 @@ export default function GoalsPage() {
     if (!confirm("Are you sure you want to delete this goal?")) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("goals").delete().eq("id", id);
-      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error } = await supabase.from("goals").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        localDb.deleteGoal(id);
+      }
       
       setGoals((prev) => prev.filter((g) => g.id !== id));
       router.refresh();
@@ -108,6 +125,7 @@ export default function GoalsPage() {
                   <li>Read 20 pages every day (Education)</li>
                   <li>Run three times per week (Health)</li>
                   <li>Finish a development course in one month (Career)</li>
+                  <li>Save a specific amount of money (Finance)</li>
                 </ul>
               </div>
             </AnimatedCard>
@@ -180,7 +198,6 @@ export default function GoalsPage() {
                         </Button>
                       </div>
 
-                      {/* Progress Bar & Buttons */}
                       <div className="mt-6 space-y-3">
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-bold">Progress</span>

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
-import { Brain, Dumbbell, Sparkles, CheckSquare, Clock, Calendar, Trash2, Tag, History } from "lucide-react";
+import { Brain, Dumbbell, Sparkles, CheckSquare, Calendar, Trash2, History } from "lucide-react";
 import { format } from "date-fns";
+import { localDb } from "@/lib/localDb";
 
 type LogItem = {
   id: string;
@@ -31,33 +32,96 @@ export default function HistoryPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 1. Fetch all different logs in parallel
-      const [studyRes, workoutRes, skillRes, habitRes] = await Promise.all([
-        supabase
-          .from("study_sessions")
-          .select("id, duration_minutes, session_type, notes, started_at, subjects(name, color)")
-          .eq("user_id", user.id),
-        supabase
-          .from("workout_logs")
-          .select("id, title, duration_minutes, completed_at")
-          .eq("user_id", user.id),
-        supabase
-          .from("skill_logs")
-          .select("id, hours, milestone, notes, logged_at, skills(name)")
-          .eq("user_id", user.id),
-        supabase
-          .from("habit_logs")
-          .select("id, completed_on, habits(name, color)")
-          .eq("user_id", user.id)
-      ]);
-
       const normalized: LogItem[] = [];
 
-      // 2. Normalize Study Sessions
-      if (studyRes.data) {
-        studyRes.data.forEach((s: any) => {
+      if (user) {
+        // Fetch all different logs in parallel from Supabase
+        const [studyRes, workoutRes, skillRes, habitRes] = await Promise.all([
+          supabase
+            .from("study_sessions")
+            .select("id, duration_minutes, session_type, notes, started_at, subjects(name, color)")
+            .eq("user_id", user.id),
+          supabase
+            .from("workout_logs")
+            .select("id, title, duration_minutes, completed_at")
+            .eq("user_id", user.id),
+          supabase
+            .from("skill_logs")
+            .select("id, hours, milestone, notes, logged_at, skills(name)")
+            .eq("user_id", user.id),
+          supabase
+            .from("habit_logs")
+            .select("id, completed_on, habits(name, color)")
+            .eq("user_id", user.id)
+        ]);
+
+        if (studyRes.data) {
+          studyRes.data.forEach((s: any) => {
+            normalized.push({
+              id: s.id,
+              type: "study",
+              title: s.subjects?.name || "General Study",
+              subtitle: `${s.session_type} Session`,
+              notes: s.notes,
+              timestamp: s.started_at,
+              extraInfo: `${s.duration_minutes} mins`,
+              color: s.subjects?.color || "#8b5cf6"
+            });
+          });
+        }
+
+        if (workoutRes.data) {
+          workoutRes.data.forEach((w: any) => {
+            normalized.push({
+              id: w.id,
+              type: "workout",
+              title: w.title || "Gym Session",
+              subtitle: "Fitness Log",
+              timestamp: w.completed_at,
+              extraInfo: `${w.duration_minutes} mins`,
+              color: "#22c55e"
+            });
+          });
+        }
+
+        if (skillRes.data) {
+          skillRes.data.forEach((s: any) => {
+            normalized.push({
+              id: s.id,
+              type: "skill",
+              title: s.skills?.name || "Skill Building",
+              subtitle: s.milestone || "Practiced Skill",
+              notes: s.notes,
+              timestamp: s.logged_at,
+              extraInfo: `+${s.hours} hours`,
+              color: "#ec4899"
+            });
+          });
+        }
+
+        if (habitRes.data) {
+          habitRes.data.forEach((h: any) => {
+            normalized.push({
+              id: h.id,
+              type: "habit",
+              title: h.habits?.name || "Habit Check-in",
+              subtitle: "Completed Habit",
+              timestamp: `${h.completed_on}T12:00:00Z`,
+              extraInfo: "Checked off",
+              color: h.habits?.color || "#e5e7eb"
+            });
+          });
+        }
+      } else {
+        // Fallback to local storage database
+        const localStudy = localDb.getStudySessions();
+        const localWorkout = localDb.getWorkouts();
+        const localSkills = localDb.getSkills();
+        const localSkillLogs = localDb.getSkillLogs();
+        const localHabits = localDb.getHabits();
+        const localHabitLogs = localDb.getHabitLogs();
+
+        localStudy.forEach((s) => {
           normalized.push({
             id: s.id,
             type: "study",
@@ -69,55 +133,47 @@ export default function HistoryPage() {
             color: s.subjects?.color || "#8b5cf6"
           });
         });
-      }
 
-      // 3. Normalize Workout Logs
-      if (workoutRes.data) {
-        workoutRes.data.forEach((w: any) => {
+        localWorkout.forEach((w) => {
           normalized.push({
             id: w.id,
             type: "workout",
-            title: w.title || "Gym Session",
+            title: w.title,
             subtitle: "Fitness Log",
+            notes: w.notes,
             timestamp: w.completed_at,
             extraInfo: `${w.duration_minutes} mins`,
             color: "#22c55e"
           });
         });
-      }
 
-      // 4. Normalize Skill Logs
-      if (skillRes.data) {
-        skillRes.data.forEach((s: any) => {
+        localSkillLogs.forEach((s) => {
+          const parent = localSkills.find((k) => k.id === s.skill_id);
           normalized.push({
             id: s.id,
             type: "skill",
-            title: s.skills?.name || "Skill Building",
-            subtitle: s.milestone || "Practiced Skill",
-            notes: s.notes,
+            title: parent?.name || "Skill Building",
+            subtitle: "Practiced Skill",
             timestamp: s.logged_at,
             extraInfo: `+${s.hours} hours`,
             color: "#ec4899"
           });
         });
-      }
 
-      // 5. Normalize Habit Logs
-      if (habitRes.data) {
-        habitRes.data.forEach((h: any) => {
+        localHabitLogs.forEach((h) => {
+          const parent = localHabits.find((k) => k.id === h.habit_id);
           normalized.push({
             id: h.id,
             type: "habit",
-            title: h.habits?.name || "Habit Check-in",
+            title: parent?.name || "Habit Check-in",
             subtitle: "Completed Habit",
-            timestamp: `${h.completed_on}T12:00:00Z`, // normalize date to timestamp
+            timestamp: `${h.completed_on}T12:00:00Z`,
             extraInfo: "Checked off",
-            color: h.habits?.color || "#e5e7eb"
+            color: parent?.color || "#e5e7eb"
           });
         });
       }
 
-      // 6. Sort by timestamp descending
       normalized.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setLogs(normalized);
     } catch (err) {
@@ -136,15 +192,47 @@ export default function HistoryPage() {
 
     try {
       const supabase = createClient();
-      let table = "";
-      
-      if (log.type === "study") table = "study_sessions";
-      else if (log.type === "workout") table = "workout_logs";
-      else if (log.type === "skill") table = "skill_logs";
-      else if (log.type === "habit") table = "habit_logs";
+      const { data: { user } } = await supabase.auth.getUser();
 
-      const { error } = await supabase.from(table).delete().eq("id", log.id);
-      if (error) throw error;
+      if (user) {
+        let table = "";
+        if (log.type === "study") table = "study_sessions";
+        else if (log.type === "workout") table = "workout_logs";
+        else if (log.type === "skill") table = "skill_logs";
+        else if (log.type === "habit") table = "habit_logs";
+
+        const { error } = await supabase.from(table).delete().eq("id", log.id);
+        if (error) throw error;
+      } else {
+        if (log.type === "study") localDb.deleteStudySession(log.id);
+        else if (log.type === "workout") localDb.deleteWorkout(log.id);
+        else if (log.type === "skill") {
+          // Find skill log to delete
+          const logs = localDb.getSkillLogs();
+          const target = logs.find((l) => l.id === log.id);
+          if (target) {
+            const list = logs.filter((l) => l.id !== log.id);
+            localStorage.setItem("local_db_skill_logs", JSON.stringify(list));
+            // Recalculate parent skill
+            const skills = localDb.getSkills();
+            const skillIndex = skills.findIndex((s) => s.id === target.skill_id);
+            if (skillIndex > -1) {
+              const skill = skills[skillIndex];
+              const totalHours = list
+                .filter((l) => l.skill_id === target.skill_id)
+                .reduce((sum, l) => sum + Number(l.hours), 0);
+              skills[skillIndex] = {
+                ...skill,
+                progress: Math.min(100, Math.round((totalHours / skill.target_hours) * 100))
+              };
+              localStorage.setItem("local_db_skills", JSON.stringify(skills));
+            }
+          }
+        } else if (log.type === "habit") {
+          const list = localDb.getHabitLogs().filter((h) => h.id !== log.id);
+          localStorage.setItem("local_db_habit_logs", JSON.stringify(list));
+        }
+      }
 
       setLogs((prev) => prev.filter((item) => item.id !== log.id));
       router.refresh();
@@ -185,7 +273,6 @@ export default function HistoryPage() {
         </p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-border/40 pb-2 overflow-x-auto no-scrollbar">
         {(["all", "study", "workout", "skill", "habit"] as const).map((tab) => (
           <button
@@ -254,7 +341,7 @@ export default function HistoryPage() {
                       </span>
                     </div>
                     {log.notes && (
-                      <p className="mt-2 text-sm text-muted/80 bg-card/40 rounded-xl p-2.5 max-w-xl border border-border/20">
+                      <p className="mt-2 text-sm text-muted bg-card/40 border border-border/10 rounded-xl p-2.5 max-w-xl">
                         {log.notes}
                       </p>
                     )}

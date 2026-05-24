@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
-import { QuickAuth } from "@/components/dashboard/QuickAuth";
+import { localDb } from "@/lib/localDb";
 
 interface WorkoutFormProps {
   onSuccess?: () => void;
@@ -19,13 +19,11 @@ export function WorkoutForm({ onSuccess }: WorkoutFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [user, setUser] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
 
   const checkUser = useCallback(async () => {
     const supabase = createClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();
     setUser(authUser);
-    setUserLoading(false);
   }, []);
 
   useEffect(() => {
@@ -46,18 +44,18 @@ export function WorkoutForm({ onSuccess }: WorkoutFormProps) {
       const supabase = createClient();
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      if (!currentUser) {
-        throw new Error("You must be logged in to log a workout");
+      if (currentUser) {
+        const { error: insertError } = await supabase.from("workout_logs").insert({
+          title: title.trim(),
+          duration_minutes: duration,
+          user_id: currentUser.id,
+          completed_at: new Date().toISOString()
+        });
+
+        if (insertError) throw insertError;
+      } else {
+        localDb.saveWorkout(title.trim(), duration, notes.trim());
       }
-
-      const { error: insertError } = await supabase.from("workout_logs").insert({
-        title: title.trim(),
-        duration_minutes: duration,
-        user_id: currentUser.id,
-        completed_at: new Date().toISOString()
-      });
-
-      if (insertError) throw insertError;
 
       setTitle("");
       setDuration(45);
@@ -70,20 +68,6 @@ export function WorkoutForm({ onSuccess }: WorkoutFormProps) {
     } finally {
       setLoading(false);
     }
-  }
-
-  if (userLoading) {
-    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
-  }
-
-  if (!user) {
-    return (
-      <QuickAuth
-        title="Activate Workout Tracker"
-        description="Verify your workspace to record workouts, reps, and sets."
-        onSuccess={checkUser}
-      />
-    );
   }
 
   return (

@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
 import { Dumbbell, Calendar, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { localDb } from "@/lib/localDb";
 
 export default function WorkoutsPage() {
   const router = useRouter();
@@ -20,18 +21,23 @@ export default function WorkoutsPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      
+      if (user) {
+        const { data, error } = await supabase
+          .from("workout_logs")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("completed_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("workout_logs")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("completed_at", { ascending: false });
-
-      if (error) throw error;
-      setWorkouts(data || []);
+        if (error) throw error;
+        setWorkouts(data || []);
+      } else {
+        setWorkouts(localDb.getWorkouts());
+      }
     } catch (err) {
       console.error("Error fetching workouts:", err);
+      // Fallback
+      setWorkouts(localDb.getWorkouts());
     } finally {
       setLoading(false);
     }
@@ -45,8 +51,14 @@ export default function WorkoutsPage() {
     if (!confirm("Are you sure you want to delete this workout log?")) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("workout_logs").delete().eq("id", id);
-      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error } = await supabase.from("workout_logs").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        localDb.deleteWorkout(id);
+      }
       
       setWorkouts((prev) => prev.filter((w) => w.id !== id));
       router.refresh();

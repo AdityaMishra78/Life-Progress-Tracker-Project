@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
-import { QuickAuth } from "@/components/dashboard/QuickAuth";
+import { localDb } from "@/lib/localDb";
 
 interface HabitFormProps {
   onSuccess?: () => void;
@@ -21,20 +21,18 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [user, setUser] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
+
+  const colors = ["#22c55e", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
   const checkUser = useCallback(async () => {
     const supabase = createClient();
     const { data: { user: authUser } } = await supabase.auth.getUser();
     setUser(authUser);
-    setUserLoading(false);
   }, []);
 
   useEffect(() => {
     checkUser();
   }, [checkUser]);
-
-  const colors = ["#22c55e", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,23 +46,23 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-      if (!user) {
-        throw new Error("You must be logged in to add a habit");
+      if (currentUser) {
+        const { error: insertError } = await supabase.from("habits").insert({
+          name: name.trim(),
+          description: description.trim(),
+          period,
+          routine,
+          color,
+          user_id: currentUser.id,
+          active: true
+        });
+
+        if (insertError) throw insertError;
+      } else {
+        localDb.saveHabit(name.trim(), description.trim(), period, routine, color);
       }
-
-      const { error: insertError } = await supabase.from("habits").insert({
-        name: name.trim(),
-        description: description.trim(),
-        period,
-        routine,
-        color,
-        user_id: user.id,
-        active: true
-      });
-
-      if (insertError) throw insertError;
 
       setName("");
       setDescription("");
@@ -79,20 +77,6 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
     } finally {
       setLoading(false);
     }
-  }
-
-  if (userLoading) {
-    return <div className="h-44 animate-pulse rounded-2xl bg-card/40 border border-border/10" />;
-  }
-
-  if (!user) {
-    return (
-      <QuickAuth
-        title="Activate Habit Tracker"
-        description="Verify your workspace to establish consistency and log recurring habits."
-        onSuccess={checkUser}
-      />
-    );
   }
 
   return (

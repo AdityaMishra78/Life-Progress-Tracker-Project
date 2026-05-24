@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { StudySessionForm } from "@/components/forms/StudySessionForm";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
-import { Brain, Calendar, Clock, Trash2, Tag } from "lucide-react";
+import { Brain, Calendar, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/Badge";
+import { localDb } from "@/lib/localDb";
 
 export default function StudyPage() {
   const router = useRouter();
@@ -21,29 +22,33 @@ export default function StudyPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      
+      if (user) {
+        const { data, error } = await supabase
+          .from("study_sessions")
+          .select(`
+            id,
+            duration_minutes,
+            session_type,
+            notes,
+            started_at,
+            subject_id,
+            subjects (
+              name,
+              color
+            )
+          `)
+          .eq("user_id", user.id)
+          .order("started_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("study_sessions")
-        .select(`
-          id,
-          duration_minutes,
-          session_type,
-          notes,
-          started_at,
-          subject_id,
-          subjects (
-            name,
-            color
-          )
-        `)
-        .eq("user_id", user.id)
-        .order("started_at", { ascending: false });
-
-      if (error) throw error;
-      setSessions(data || []);
+        if (error) throw error;
+        setSessions(data || []);
+      } else {
+        setSessions(localDb.getStudySessions());
+      }
     } catch (err) {
       console.error("Error fetching study sessions:", err);
+      setSessions(localDb.getStudySessions());
     } finally {
       setLoading(false);
     }
@@ -57,8 +62,14 @@ export default function StudyPage() {
     if (!confirm("Are you sure you want to delete this study session log?")) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("study_sessions").delete().eq("id", id);
-      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error } = await supabase.from("study_sessions").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        localDb.deleteStudySession(id);
+      }
       
       setSessions((prev) => prev.filter((s) => s.id !== id));
       router.refresh();
