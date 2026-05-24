@@ -22,7 +22,9 @@ export async function getDashboardData() {
     streakRes,
     weeklyStudyRes,
     weeklyWorkoutRes,
-    goalsRes
+    goalsRes,
+    workoutsTodayRes,
+    activeHabitsRes
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", userId).single(),
 
@@ -75,7 +77,20 @@ export async function getDashboardData() {
       .select("id, title, progress, priority, deadline")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(5)
+      .limit(5),
+
+    supabase
+      .from("workout_logs")
+      .select("id")
+      .eq("user_id", userId)
+      .gte("completed_at", `${today}T00:00:00`)
+      .lte("completed_at", `${today}T23:59:59`),
+
+    supabase
+      .from("habits")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("active", true)
   ]);
 
   const studyMinutesToday =
@@ -127,7 +142,10 @@ export async function getDashboardData() {
       level,
       xp,
       nextLevelXp: nextLevelXp(level),
-      dailyStreak: streakRes.data?.current_count ?? 0
+      dailyStreak: streakRes.data?.current_count ?? 0,
+      workoutsToday: workoutsTodayRes.data?.length ?? 0,
+      completedHabitsCount: habitsTodayRes.data?.length ?? 0,
+      totalHabitsCount: activeHabitsRes.data?.length ?? 0
     },
     profile,
     weekly,

@@ -2,16 +2,76 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { createClient } from "@/lib/supabase/browser";
+import { useRouter } from "next/navigation";
 
-export function GoalForm() {
+interface GoalFormProps {
+  onSuccess?: () => void;
+}
+
+export function GoalForm({ onSuccess }: GoalFormProps) {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("personal");
   const [priority, setPriority] = useState("medium");
   const [deadline, setDeadline] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) {
+      setError("Please enter a goal title");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("You must be logged in to add a goal");
+      }
+
+      const { error: insertError } = await supabase.from("goals").insert({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        priority,
+        deadline: deadline || null,
+        progress: 0,
+        completed: false,
+        user_id: user.id
+      });
+
+      if (insertError) throw insertError;
+
+      setTitle("");
+      setDescription("");
+      setCategory("personal");
+      setPriority("medium");
+      setDeadline("");
+
+      router.refresh();
+      if (onSuccess) onSuccess();
+    } catch (err: any) {
+      setError(err.message || "Failed to add goal. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <form className="space-y-4">
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      {error && (
+        <div className="rounded-2xl bg-red-500/10 p-3 text-sm text-red-500">
+          {error}
+        </div>
+      )}
       <div>
         <label className="mb-1 block text-sm font-medium">Title</label>
         <input
@@ -19,6 +79,7 @@ export function GoalForm() {
           onChange={(e) => setTitle(e.target.value)}
           className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none focus:ring-2 focus:ring-primary/20"
           placeholder="e.g., Learn TypeScript"
+          disabled={loading}
         />
       </div>
       <div>
@@ -28,7 +89,8 @@ export function GoalForm() {
           onChange={(e) => setDescription(e.target.value)}
           className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none focus:ring-2 focus:ring-primary/20"
           rows={3}
-          placeholder="Details about the goal..."
+          placeholder="Details about the goal... (optional)"
+          disabled={loading}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -37,7 +99,8 @@ export function GoalForm() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none"
+            className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none focus:ring-2 focus:ring-primary/20"
+            disabled={loading}
           >
             <option value="personal">Personal</option>
             <option value="career">Career</option>
@@ -51,7 +114,8 @@ export function GoalForm() {
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none"
+            className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none focus:ring-2 focus:ring-primary/20"
+            disabled={loading}
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -66,10 +130,13 @@ export function GoalForm() {
           type="date"
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
-          className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none"
+          className="w-full rounded-2xl border border-border bg-card/60 px-4 py-3 outline-none focus:ring-2 focus:ring-primary/20"
+          disabled={loading}
         />
       </div>
-      <Button className="w-full">Add Goal</Button>
+      <Button className="w-full" type="submit" disabled={loading}>
+        {loading ? "Adding..." : "Add Goal"}
+      </Button>
     </form>
   );
 }

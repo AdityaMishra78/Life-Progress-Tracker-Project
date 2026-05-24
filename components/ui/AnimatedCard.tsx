@@ -1,15 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, HTMLMotionProps } from "framer-motion";
 
 export function AnimatedCard({
   children,
-  className
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+  className,
+  ...props
+}: HTMLMotionProps<"div">) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 18 }}
@@ -17,6 +15,7 @@ export function AnimatedCard({
       whileHover={{ y: -4 }}
       transition={{ duration: 0.28 }}
       className={cn("glass rounded-3xl p-5 shadow-sm", className)}
+      {...props}
     >
       {children}
     </motion.div>
