@@ -47,10 +47,10 @@ export default function AnalyticsPage() {
     : xpVal.toLocaleString();
 
   const statCards = [
-    { label: "Study minutes", value: formattedStudy, icon: Brain, color: "text-violet-400" },
-    { label: "Workouts", value: (analytics?.workouts ?? 0).toString(), icon: Dumbbell, color: "text-emerald-400" },
-    { label: "Habit streak", value: `${analytics?.habitStreak ?? 0} days`, icon: CheckSquare, color: "text-amber-400" },
-    { label: "XP gained", value: formattedXp, icon: TrendingUp, color: "text-cyan-400" }
+    { label: "Study minutes", value: formattedStudy, icon: Brain, color: "text-neutral-500" },
+    { label: "Workouts", value: (analytics?.workouts ?? 0).toString(), icon: Dumbbell, color: "text-neutral-400" },
+    { label: "Habit streak", value: `${analytics?.habitStreak ?? 0} days`, icon: CheckSquare, color: "text-neutral-600" },
+    { label: "XP gained", value: formattedXp, icon: TrendingUp, color: "text-foreground" }
   ];
 
   return (

@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 import { memo } from "react";
 
 const tones = {
-  orange: "from-orange-500 to-amber-400",
-  purple: "from-violet-500 to-fuchsia-400",
-  cyan: "from-cyan-500 to-blue-400",
-  green: "from-emerald-500 to-lime-400",
-  pink: "from-pink-500 to-rose-400"
+  orange: "from-neutral-900 via-neutral-700 to-neutral-500 dark:from-neutral-100 dark:via-neutral-300 dark:to-neutral-500",
+  purple: "from-neutral-800 to-neutral-400 dark:from-neutral-200 dark:to-neutral-600",
+  cyan: "from-neutral-950 via-neutral-800 to-neutral-600 dark:from-neutral-50 dark:via-neutral-200 dark:to-neutral-400",
+  green: "from-neutral-700 to-neutral-300 dark:from-neutral-300 dark:to-neutral-700",
+  pink: "from-neutral-900 to-neutral-500 dark:from-neutral-100 dark:to-neutral-500"
 };
 
 export const StatCard = memo(function StatCard({

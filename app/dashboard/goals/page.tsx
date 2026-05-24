@@ -189,7 +189,7 @@ export default function GoalsPage() {
                         
                         <div className="h-2 rounded-full bg-muted/15 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all duration-500"
+                            className="h-full rounded-full bg-gradient-to-r from-neutral-800 to-neutral-400 dark:from-neutral-200 dark:to-neutral-600 transition-all duration-500"
                             style={{ width: `${goal.progress}%` }}
                           />
                         </div>
