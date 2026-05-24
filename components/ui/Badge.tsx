@@ -1,15 +1,16 @@
 import { cn } from "@/lib/utils";
+import type { HTMLAttributes } from "react";
 
-interface BadgeProps {
+interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
   variant?: "default" | "outline" | "secondary" | "destructive";
-  className?: string;
 }
 
 export function Badge({
   children,
   variant = "default",
-  className
+  className,
+  ...props
 }: BadgeProps) {
   return (
     <span
@@ -21,6 +22,7 @@ export function Badge({
         variant === "destructive" && "bg-red-500/10 text-red-500",
         className
       )}
+      {...props}
     >
       {children}
     </span>

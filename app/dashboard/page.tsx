@@ -19,7 +19,10 @@ export default async function DashboardPage() {
       level: 3,
       xp: 385,
       nextLevelXp: 720,
-      dailyStreak: 5
+      dailyStreak: 5,
+      workoutsToday: 1,
+      completedHabitsCount: 5,
+      totalHabitsCount: 7
     },
     weekly: [
       { day: "Mon", study: 120, workout: 1 },
@@ -92,7 +95,7 @@ export default async function DashboardPage() {
         </AnimatedCard>
       </section>
 
-      <TodayOverview />
+      <TodayOverview stats={stats} />
 
       <section className="grid gap-6 xl:grid-cols-3">
         <GamificationPanel
