@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { localDb } from "@/lib/localDb";
 
 interface StudySessionFormProps {
   onSuccess?: () => void;
@@ -19,20 +20,27 @@ export function StudySessionForm({ onSuccess }: StudySessionFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [subjectsList, setSubjectsList] = useState<{ id: string; name: string }[]>([]);
 
-  useEffect(() => {
-    async function loadSubjects() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from("subjects")
-          .select("id, name")
-          .eq("user_id", user.id);
-        if (data) setSubjectsList(data);
-      }
+  const [user, setUser] = useState<any>(null);
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+    
+    if (authUser) {
+      const { data } = await supabase
+        .from("subjects")
+        .select("id, name")
+        .eq("user_id", authUser.id);
+      if (data) setSubjectsList(data);
+    } else {
+      setSubjectsList(localDb.getSubjects());
     }
-    loadSubjects();
   }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,54 +58,58 @@ export function StudySessionForm({ onSuccess }: StudySessionFormProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-      if (!user) {
-        throw new Error("You must be logged in to log a session");
-      }
+      if (currentUser) {
+        // 1. Find or create the subject in Supabase
+        const trimmedSubjectName = subject.trim();
+        const existing = subjectsList.find(
+          (s) => s.name.toLowerCase() === trimmedSubjectName.toLowerCase()
+        );
 
-      // 1. Find or create the subject
-      const trimmedSubjectName = subject.trim();
-      const existing = subjectsList.find(
-        (s) => s.name.toLowerCase() === trimmedSubjectName.toLowerCase()
-      );
+        let subjectId = null;
+        if (existing) {
+          subjectId = existing.id;
+        } else {
+          const colors = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
+          const randomColor = colors[Math.floor(Math.random() * colors.length)];
+          const { data: newSub, error: subError } = await supabase
+            .from("subjects")
+            .insert({
+              name: trimmedSubjectName,
+              user_id: currentUser.id,
+              color: randomColor
+            })
+            .select()
+            .single();
 
-      let subjectId = null;
-      if (existing) {
-        subjectId = existing.id;
+          if (subError) throw subError;
+          subjectId = newSub.id;
+        }
+
+        // 2. Log the study session in Supabase
+        const { error: sessionError } = await supabase.from("study_sessions").insert({
+          subject_id: subjectId,
+          duration_minutes: duration,
+          session_type: sessionType,
+          notes: notes.trim(),
+          user_id: currentUser.id,
+          started_at: new Date().toISOString()
+        });
+
+        if (sessionError) throw sessionError;
       } else {
-        const colors = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
-        const { data: newSub, error: subError } = await supabase
-          .from("subjects")
-          .insert({
-            name: trimmedSubjectName,
-            user_id: user.id,
-            color: randomColor
-          })
-          .select()
-          .single();
-
-        if (subError) throw subError;
-        subjectId = newSub.id;
+        // Log using localDb
+        localDb.saveStudySession(subject.trim(), duration, sessionType, notes.trim());
       }
-
-      // 2. Log the study session
-      const { error: sessionError } = await supabase.from("study_sessions").insert({
-        subject_id: subjectId,
-        duration_minutes: duration,
-        session_type: sessionType,
-        notes: notes.trim(),
-        user_id: user.id,
-        started_at: new Date().toISOString()
-      });
-
-      if (sessionError) throw sessionError;
 
       setSubject("");
       setDuration(60);
       setNotes("");
       setSessionType("focus");
+
+      // Reload local subjects list
+      checkUser();
 
       router.refresh();
       if (onSuccess) onSuccess();

@@ -109,10 +109,10 @@ export async function GET() {
     const hasData = (studyVal + workoutVal + habitVal + skillVal) > 0;
 
     const balanceData = [
-      { name: "Study", value: hasData ? studyVal : 25, color: "#8b5cf6" },
-      { name: "Workout", value: hasData ? workoutVal : 25, color: "#22c55e" },
-      { name: "Habits", value: hasData ? habitVal : 25, color: "#f59e0b" },
-      { name: "Skills", value: hasData ? skillVal : 25, color: "#06b6d4" }
+      { name: "Study", value: hasData ? studyVal : 25, color: "#171717" },
+      { name: "Workout", value: hasData ? workoutVal : 25, color: "#525252" },
+      { name: "Habits", value: hasData ? habitVal : 25, color: "#909090" },
+      { name: "Skills", value: hasData ? skillVal : 25, color: "#d4d4d4" }
     ];
 
     // 7. Activity Heatmap over last 28 days (for Heatmap)

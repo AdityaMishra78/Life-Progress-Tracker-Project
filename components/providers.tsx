@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
+import { createClient } from "@/lib/supabase/browser";
 
 type Theme = "light" | "dark" | "system";
 
@@ -36,6 +37,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     setThemeState(initialTheme);
     applyTheme(resolvedTheme);
+
+    const supabase = createClient();
+    async function checkAuthAndRedirect() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const path = window.location.pathname;
+        const localUsername = typeof window !== "undefined" ? localStorage.getItem("local_username") : null;
+        
+        const hasSession = !!user;
+
+        if (path.startsWith("/dashboard") && !hasSession && !localUsername) {
+          window.location.href = "/";
+          return;
+        }
+
+        if (path === "/" && (hasSession || localUsername)) {
+          window.location.href = "/dashboard";
+          return;
+        }
+      } catch (err) {
+        console.error("Auth routing check error:", err);
+      }
+    }
+    checkAuthAndRedirect();
   }, []);
 
   useEffect(() => {

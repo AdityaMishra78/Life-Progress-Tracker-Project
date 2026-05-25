@@ -19,10 +19,10 @@ const config: Config = {
         accent: "hsl(var(--accent))"
       },
       boxShadow: {
-        glow: "0 0 40px rgba(139,92,246,.28)"
+        glow: "0 0 40px rgba(120,120,120,.12)"
       },
       backgroundImage: {
-        "aurora": "radial-gradient(circle at top left, rgba(139,92,246,.28), transparent 35%), radial-gradient(circle at bottom right, rgba(34,211,238,.22), transparent 35%)"
+        "aurora": "radial-gradient(circle at top left, rgba(120,120,120,.05), transparent 45%), radial-gradient(circle at bottom right, rgba(120,120,120,.05), transparent 45%)"
       }
     }
   },

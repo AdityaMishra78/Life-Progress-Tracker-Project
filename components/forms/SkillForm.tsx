@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { localDb } from "@/lib/localDb";
 
 interface SkillFormProps {
   onSuccess?: () => void;
@@ -17,6 +18,18 @@ export function SkillForm({ onSuccess }: SkillFormProps) {
   const [targetHours, setTargetHours] = useState(100);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [user, setUser] = useState<any>(null);
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+  }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,22 +47,22 @@ export function SkillForm({ onSuccess }: SkillFormProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-      if (!user) {
-        throw new Error("You must be logged in to add a skill");
+      if (currentUser) {
+        const { error: insertError } = await supabase.from("skills").insert({
+          name: name.trim(),
+          category: category.trim(),
+          description: description.trim(),
+          target_hours: targetHours,
+          progress: 0,
+          user_id: currentUser.id
+        });
+
+        if (insertError) throw insertError;
+      } else {
+        localDb.saveSkill(name.trim(), category.trim(), description.trim(), targetHours);
       }
-
-      const { error: insertError } = await supabase.from("skills").insert({
-        name: name.trim(),
-        category: category.trim(),
-        description: description.trim(),
-        target_hours: targetHours,
-        progress: 0,
-        user_id: user.id
-      });
-
-      if (insertError) throw insertError;
 
       setName("");
       setCategory("");

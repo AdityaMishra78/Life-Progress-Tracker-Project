@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { HabitForm } from "@/components/forms/HabitForm";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
-import { CheckSquare, Square, Trash2, Calendar, Award } from "lucide-react";
+import { CheckSquare, Square, Trash2, Award } from "lucide-react";
 import { format } from "date-fns";
+import { localDb } from "@/lib/localDb";
 
 export default function HabitsPage() {
   const router = useRouter();
@@ -21,31 +22,40 @@ export default function HabitsPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const todayStr = format(new Date(), "yyyy-MM-dd");
 
-      const [habitsRes, logsRes] = await Promise.all([
-        supabase
-          .from("habits")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("active", true)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("habit_logs")
-          .select("habit_id")
-          .eq("user_id", user.id)
-          .eq("completed_on", todayStr)
-      ]);
+      if (user) {
+        const [habitsRes, logsRes] = await Promise.all([
+          supabase
+            .from("habits")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("active", true)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("habit_logs")
+            .select("habit_id")
+            .eq("user_id", user.id)
+            .eq("completed_on", todayStr)
+        ]);
 
-      if (habitsRes.error) throw habitsRes.error;
-      if (logsRes.error) throw logsRes.error;
+        if (habitsRes.error) throw habitsRes.error;
+        if (logsRes.error) throw logsRes.error;
 
-      setHabits(habitsRes.data || []);
-      setCompletedToday(logsRes.data?.map((l: any) => l.habit_id) || []);
+        setHabits(habitsRes.data || []);
+        setCompletedToday(logsRes.data?.map((l: any) => l.habit_id) || []);
+      } else {
+        setHabits(localDb.getHabits());
+        const logs = localDb.getHabitLogs();
+        setCompletedToday(logs.filter((l) => l.completed_on === todayStr).map((l) => l.habit_id));
+      }
     } catch (err) {
       console.error("Error fetching habits:", err);
+      // Fallback
+      setHabits(localDb.getHabits());
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const logs = localDb.getHabitLogs();
+      setCompletedToday(logs.filter((l) => l.completed_on === todayStr).map((l) => l.habit_id));
     } finally {
       setLoading(false);
     }
@@ -59,32 +69,39 @@ export default function HabitsPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const todayStr = format(new Date(), "yyyy-MM-dd");
 
-      if (isCompleted) {
-        // Uncheck: delete log
-        const { error } = await supabase
-          .from("habit_logs")
-          .delete()
-          .eq("habit_id", habitId)
-          .eq("completed_on", todayStr)
-          .eq("user_id", user.id);
-        if (error) throw error;
-        setCompletedToday((prev) => prev.filter((id) => id !== habitId));
+      if (user) {
+        if (isCompleted) {
+          // Uncheck: delete log
+          const { error } = await supabase
+            .from("habit_logs")
+            .delete()
+            .eq("habit_id", habitId)
+            .eq("completed_on", todayStr)
+            .eq("user_id", user.id);
+          if (error) throw error;
+          setCompletedToday((prev) => prev.filter((id) => id !== habitId));
+        } else {
+          // Check: insert log
+          const { error } = await supabase
+            .from("habit_logs")
+            .insert({
+              habit_id: habitId,
+              completed_on: todayStr,
+              completed: true,
+              user_id: user.id
+            });
+          if (error) throw error;
+          setCompletedToday((prev) => [...prev, habitId]);
+        }
       } else {
-        // Check: insert log
-        const { error } = await supabase
-          .from("habit_logs")
-          .insert({
-            habit_id: habitId,
-            completed_on: todayStr,
-            completed: true,
-            user_id: user.id
-          });
-        if (error) throw error;
-        setCompletedToday((prev) => [...prev, habitId]);
+        const added = localDb.toggleHabitLog(habitId);
+        if (added) {
+          setCompletedToday((prev) => [...prev, habitId]);
+        } else {
+          setCompletedToday((prev) => prev.filter((id) => id !== habitId));
+        }
       }
       router.refresh();
     } catch (err) {
@@ -96,8 +113,14 @@ export default function HabitsPage() {
     if (!confirm("Are you sure you want to delete this habit? All log history will be removed.")) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("habits").delete().eq("id", id);
-      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error } = await supabase.from("habits").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        localDb.deleteHabit(id);
+      }
       
       setHabits((prev) => prev.filter((h) => h.id !== id));
       router.refresh();

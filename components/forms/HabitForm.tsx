@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
+import { localDb } from "@/lib/localDb";
 
 interface HabitFormProps {
   onSuccess?: () => void;
@@ -19,7 +20,19 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [user, setUser] = useState<any>(null);
+
   const colors = ["#22c55e", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
+
+  const checkUser = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
+  }, []);
+
+  useEffect(() => {
+    checkUser();
+  }, [checkUser]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,23 +46,23 @@ export function HabitForm({ onSuccess }: HabitFormProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-      if (!user) {
-        throw new Error("You must be logged in to add a habit");
+      if (currentUser) {
+        const { error: insertError } = await supabase.from("habits").insert({
+          name: name.trim(),
+          description: description.trim(),
+          period,
+          routine,
+          color,
+          user_id: currentUser.id,
+          active: true
+        });
+
+        if (insertError) throw insertError;
+      } else {
+        localDb.saveHabit(name.trim(), description.trim(), period, routine, color);
       }
-
-      const { error: insertError } = await supabase.from("habits").insert({
-        name: name.trim(),
-        description: description.trim(),
-        period,
-        routine,
-        color,
-        user_id: user.id,
-        active: true
-      });
-
-      if (insertError) throw insertError;
 
       setName("");
       setDescription("");

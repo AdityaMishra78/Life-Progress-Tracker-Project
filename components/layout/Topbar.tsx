@@ -6,11 +6,30 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Search, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { useState, useEffect } from "react";
+
 export function Topbar({ name }: { name?: string | null }) {
   const router = useRouter();
+  const [displayName, setDisplayName] = useState<string>("Champion");
+
+  useEffect(() => {
+    if (name) {
+      setDisplayName(name);
+    } else {
+      const localName = typeof window !== "undefined" ? localStorage.getItem("local_username") : null;
+      if (localName) {
+        setDisplayName(localName);
+      } else {
+        setDisplayName("Champion");
+      }
+    }
+  }, [name]);
 
   async function logout() {
     await createClient().auth.signOut();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("local_username");
+    }
     router.push("/");
     router.refresh();
   }
@@ -19,7 +38,7 @@ export function Topbar({ name }: { name?: string | null }) {
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/50 bg-background/70 px-4 py-4 backdrop-blur-xl lg:px-8">
       <div>
         <p className="text-sm text-muted">Welcome back,</p>
-        <h1 className="text-xl font-black">{name || "Champion"} 👋</h1>
+        <h1 className="text-xl font-black">{displayName} 👋</h1>
       </div>
 
       <div className="hidden w-full max-w-sm items-center rounded-2xl border border-border bg-card/70 px-3 py-2 md:flex">

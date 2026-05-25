@@ -22,8 +22,8 @@ export function WeeklyChart({
         <ComposedChart data={data}>
           <defs>
             <linearGradient id="study" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.6} />
-              <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.04} />
+              <stop offset="0%" stopColor="#737373" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#737373" stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" opacity={0.18} />
@@ -40,11 +40,11 @@ export function WeeklyChart({
           <Area
             type="monotone"
             dataKey="study"
-            stroke="#8b5cf6"
+            stroke="#525252"
             fill="url(#study)"
             strokeWidth={3}
           />
-          <Bar dataKey="workout" fill="#22c55e" radius={[10, 10, 0, 0]} />
+          <Bar dataKey="workout" fill="#a3a3a3" radius={[10, 10, 0, 0]} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

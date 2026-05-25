@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
 import { Sparkles, Trash2, Plus, Clock, BookOpen, ChevronDown, ChevronUp, History } from "lucide-react";
 import { format } from "date-fns";
+import { localDb } from "@/lib/localDb";
 
 export default function SkillsPage() {
   const router = useRouter();
@@ -27,49 +28,94 @@ export default function SkillsPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
-      // Fetch skills and their logs in parallel
-      const [skillsRes, logsRes] = await Promise.all([
-        supabase
-          .from("skills")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("skill_logs")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("logged_at", { ascending: false })
-      ]);
+      if (user) {
+        // Fetch skills and their logs in parallel from Supabase
+        const [skillsRes, logsRes] = await Promise.all([
+          supabase
+            .from("skills")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("skill_logs")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("logged_at", { ascending: false })
+        ]);
 
-      if (skillsRes.error) throw skillsRes.error;
-      if (logsRes.error) throw logsRes.error;
+        if (skillsRes.error) throw skillsRes.error;
+        if (logsRes.error) throw logsRes.error;
 
-      // Group logs by skill_id
-      const logsBySkill = (logsRes.data || []).reduce((acc: any, log: any) => {
+        // Group logs by skill_id
+        const logsBySkill = (logsRes.data || []).reduce((acc: any, log: any) => {
+          if (!acc[log.skill_id]) acc[log.skill_id] = [];
+          acc[log.skill_id].push(log);
+          return acc;
+        }, {});
+
+        // Combine skills with their logs and calculate dynamic total hours
+        const combined = (skillsRes.data || []).map((skill: any) => {
+          const skillLogs = logsBySkill[skill.id] || [];
+          const totalLogged = skillLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
+          const progressPercent = Math.min(100, Math.round((totalLogged / skill.target_hours) * 100));
+          
+          return {
+            ...skill,
+            logs: skillLogs,
+            totalHoursLogged: totalLogged,
+            progress: progressPercent
+          };
+        });
+
+        setSkills(combined);
+      } else {
+        // Fallback to local storage database
+        const localSkills = localDb.getSkills();
+        const localLogs = localDb.getSkillLogs();
+
+        const logsBySkill = localLogs.reduce((acc: any, log: any) => {
+          if (!acc[log.skill_id]) acc[log.skill_id] = [];
+          acc[log.skill_id].push(log);
+          return acc;
+        }, {});
+
+        const combined = localSkills.map((skill: any) => {
+          const skillLogs = logsBySkill[skill.id] || [];
+          const totalLogged = skillLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
+          const progressPercent = Math.min(100, Math.round((totalLogged / skill.target_hours) * 100));
+
+          return {
+            ...skill,
+            logs: skillLogs,
+            totalHoursLogged: totalLogged,
+            progress: progressPercent
+          };
+        });
+
+        setSkills(combined);
+      }
+    } catch (err) {
+      console.error("Error fetching skills:", err);
+      // Fallback in case of errors
+      const localSkills = localDb.getSkills();
+      const localLogs = localDb.getSkillLogs();
+      const logsBySkill = localLogs.reduce((acc: any, log: any) => {
         if (!acc[log.skill_id]) acc[log.skill_id] = [];
         acc[log.skill_id].push(log);
         return acc;
       }, {});
-
-      // Combine skills with their logs and calculate dynamic total hours
-      const combined = (skillsRes.data || []).map((skill: any) => {
+      const combined = localSkills.map((skill: any) => {
         const skillLogs = logsBySkill[skill.id] || [];
         const totalLogged = skillLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
-        const progressPercent = Math.min(100, Math.round((totalLogged / skill.target_hours) * 100));
-        
         return {
           ...skill,
           logs: skillLogs,
           totalHoursLogged: totalLogged,
-          progress: progressPercent
+          progress: Math.min(100, Math.round((totalLogged / skill.target_hours) * 100))
         };
       });
-
       setSkills(combined);
-    } catch (err) {
-      console.error("Error fetching skills:", err);
     } finally {
       setLoading(false);
     }
@@ -86,19 +132,21 @@ export default function SkillsPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
-      const { error } = await supabase.from("skill_logs").insert({
-        skill_id: skillId,
-        hours: logHours,
-        notes: logNotes.trim() || null,
-        user_id: user.id,
-        logged_at: new Date().toISOString()
-      });
+      if (user) {
+        const { error } = await supabase.from("skill_logs").insert({
+          skill_id: skillId,
+          hours: logHours,
+          notes: logNotes.trim() || null,
+          user_id: user.id,
+          logged_at: new Date().toISOString()
+        });
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        localDb.saveSkillLog(skillId, logHours);
+      }
 
-      // Refresh both state and router stats
       setLogHours(2);
       setLogNotes("");
       setLoggingSkillId(null);
@@ -116,8 +164,14 @@ export default function SkillsPage() {
     if (!confirm("Are you sure you want to delete this skill? All learning logs will be permanently deleted.")) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("skills").delete().eq("id", id);
-      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error } = await supabase.from("skills").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        localDb.deleteSkill(id);
+      }
       
       setSkills((prev) => prev.filter((s) => s.id !== id));
       router.refresh();
@@ -211,7 +265,6 @@ export default function SkillsPage() {
                     <p className="mt-2 text-sm text-muted line-clamp-2">{skill.description}</p>
                   )}
 
-                  {/* Progress Section */}
                   <div className="mt-5 space-y-2">
                     <div className="flex justify-between text-sm font-bold">
                       <span>{skill.totalHoursLogged} / {skill.target_hours} hours</span>
@@ -219,14 +272,13 @@ export default function SkillsPage() {
                     </div>
                     <div className="h-2 rounded-full bg-muted/15">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-pink-500 to-violet-500 transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-neutral-800 to-neutral-400 dark:from-neutral-200 dark:to-neutral-600 transition-all duration-500"
                         style={{ width: `${skill.progress}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Dynamic Logging Panel */}
                 {isLogging && (
                   <div className="mt-4 rounded-2xl bg-card/40 p-4 border border-border/30 space-y-3 animate-fadeIn">
                     <h4 className="text-sm font-bold flex items-center gap-1.5">
@@ -253,42 +305,44 @@ export default function SkillsPage() {
                       />
                       <Button
                         size="sm"
-                        disabled={submittingLog || logHours <= 0}
                         onClick={() => handleAddSkillLog(skill.id)}
+                        disabled={submittingLog || logHours <= 0}
                       >
-                        {submittingLog ? "Saving..." : "Save"}
+                        Log
                       </Button>
                     </div>
                   </div>
                 )}
 
-                {/* History Section Toggle */}
-                <div className="mt-4 pt-3 border-t border-border/30 flex items-center justify-between">
-                  <button
-                    className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition font-bold"
-                    onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
-                  >
-                    <History size={14} />
-                    <span>View Logs ({skill.logs.length})</span>
-                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                </div>
+                {skill.logs && skill.logs.length > 0 && (
+                  <div className="mt-5 border-t border-border/20 pt-3">
+                    <button
+                      onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
+                      className="flex w-full items-center justify-between text-xs font-bold text-muted hover:text-foreground transition"
+                    >
+                      <span className="flex items-center gap-1">
+                        <History size={13} />
+                        {isExpanded ? "Hide log sessions" : `View learning logs (${skill.logs.length})`}
+                      </span>
+                      {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
 
-                {/* Logs History List */}
-                {isExpanded && (
-                  <div className="mt-3 space-y-2 border-t border-border/20 pt-3 max-h-40 overflow-y-auto no-scrollbar">
-                    {skill.logs.length === 0 ? (
-                      <p className="text-xs text-muted/60 italic text-center py-2">No learning logs recorded yet.</p>
-                    ) : (
-                      skill.logs.map((log: any) => (
-                        <div key={log.id} className="flex justify-between items-start gap-2 bg-card/30 p-2.5 rounded-xl border border-border/10 text-xs">
-                          <div>
-                            <p className="font-semibold text-foreground/80">{log.notes || "Learned/practiced skill"}</p>
-                            <p className="text-[10px] text-muted/80 mt-0.5">{format(new Date(log.logged_at), "PP p")}</p>
+                    {isExpanded && (
+                      <div className="mt-3 space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {skill.logs.map((log: any) => (
+                          <div key={log.id} className="flex items-center justify-between rounded-xl bg-card/30 p-2.5 border border-border/10 text-xs">
+                            <div>
+                              <span className="font-bold text-foreground">{log.hours} hrs logged</span>
+                              {log.notes && (
+                                <p className="mt-0.5 text-[11px] text-muted">{log.notes}</p>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-muted">
+                              {format(new Date(log.logged_at), "MMM d, h:mm a")}
+                            </span>
                           </div>
-                          <span className="font-black text-pink-400 bg-pink-500/5 px-2 py-0.5 rounded-lg border border-pink-500/10">+{log.hours}h</span>
-                        </div>
-                      ))
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}

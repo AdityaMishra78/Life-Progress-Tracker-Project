@@ -1,116 +1,177 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import {
-  Activity,
-  BarChart3,
-  Brain,
-  CheckSquare,
-  Dumbbell,
-  Sparkles,
-  Target,
-  Zap
-} from "lucide-react";
+"use client";
 
-export default function LandingPage() {
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { Sparkles, Compass, Flame, ArrowRight, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/browser";
+import { toast } from "sonner";
+
+export default function WelcomePage() {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleStartJourney(e: React.FormEvent) {
+    e.preventDefault();
+    const cleanUsername = username.trim();
+
+    if (!cleanUsername) {
+      toast.error("Please enter a username to continue!");
+      return;
+    }
+
+    if (cleanUsername.length < 2) {
+      toast.error("Username must be at least 2 characters long!");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 1. Always save in local storage for instant access & offline support
+      localStorage.setItem("local_username", cleanUsername);
+
+      // 2. Try signing in anonymously via Supabase
+      const supabase = createClient();
+      const { data: auth, error: authError } = await supabase.auth.signInAnonymously();
+
+      if (authError) {
+        console.warn("Supabase anonymous auth failed, proceeding in local offline mode:", authError.message);
+        toast.success(`Welcome, ${cleanUsername}! Running in offline mode.`);
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      // 3. Update Supabase profile display name
+      if (auth.user) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ display_name: cleanUsername })
+          .eq("id", auth.user.id);
+
+        if (profileError) {
+          console.error("Failed to update profile display name in Supabase:", profileError.message);
+        }
+      }
+
+      toast.success(`Welcome, ${cleanUsername}! Your journey has begun.`);
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      console.error("Error during onboarding:", err);
+      // Fallback grace
+      toast.success(`Welcome, ${cleanUsername}! Running in local offline mode.`);
+      router.push("/dashboard");
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <main className="min-h-screen">
-      {/* Hero */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <div className="absolute inset-0 -z-10 bg-aurora" />
-        <div className="flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-500 to-cyan-500 text-white shadow-glow">
-          <Activity size={36} />
-        </div>
-        <h1 className="mt-8 max-w-3xl bg-gradient-to-r from-violet-600 via-cyan-600 to-emerald-600 bg-clip-text text-6xl font-black tracking-tight text-transparent sm:text-7xl">
-          Level Up Your Life
-        </h1>
-        <p className="mt-6 max-w-xl text-lg text-muted">
-          Track study, workouts, habits, skills, and goals all in one place.
-          Gamify your progress and build unstoppable momentum.
-        </p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <Link href="/dashboard">
-            <Button size="lg">Get started free</Button>
-          </Link>
-          <Link href="/dashboard">
-            <Button variant="secondary" size="lg">
-              Explore dashboard
-            </Button>
-          </Link>
-        </div>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
+      {/* Dynamic colorful blur blobs */}
+      <div className="absolute top-1/4 left-1/4 -z-10 h-72 w-72 rounded-full bg-violet-600/25 blur-[100px] animate-pulse" />
+      <div className="absolute bottom-1/4 right-1/4 -z-10 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px] animate-pulse [animation-delay:2s]" />
 
-        {/* Feature cards */}
-        <div className="mt-20 grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            { icon: Brain, label: "Study tracker" },
-            { icon: Dumbbell, label: "Workout logs" },
-            { icon: CheckSquare, label: "Habit tracking" },
-            { icon: Sparkles, label: "Skill progress" },
-            { icon: Target, label: "Goal management" },
-            { icon: BarChart3, label: "Analytics insights" }
-          ].map(({ icon: Icon, label }) => (
-            <div
-              key={label}
-              className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card/50 p-4"
-            >
-              <Icon className="size-5 text-primary" />
-              <span className="font-medium">{label}</span>
+      <div className="w-full max-w-md">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl backdrop-blur-xl md:p-10"
+        >
+          {/* Subtle grid pattern overlay */}
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30" />
+
+          {/* Top visual accents */}
+          <div className="mb-8 flex items-center justify-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/20">
+              <Compass className="h-6 w-6" />
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="border-t border-border/50 bg-card/30 px-6 py-24">
-        <div className="mx-auto max-w-4xl">
-          <h2 className="text-center text-3xl font-black">How it works</h2>
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "Set your targets",
-                desc: "Define study hours, workout goals, habits to build, and skills to master."
-              },
-              {
-                step: "02",
-                title: "Log daily progress",
-                desc: "Track every study session, workout, habit check-in, and skill hour logged."
-              },
-              {
-                step: "03",
-                title: "Level up & analyze",
-                desc: "Earn XP, watch streaks grow, and see your productivity improve over time."
-              }
-            ].map(({ step, title, desc }) => (
-              <div key={step} className="rounded-3xl border border-border/60 bg-card p-6">
-                <div className="text-4xl font-black text-primary/30">{step}</div>
-                <h3 className="mt-4 text-xl font-bold">{title}</h3>
-                <p className="mt-2 text-sm text-muted">{desc}</p>
-              </div>
-            ))}
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.05] text-amber-500">
+              <Flame className="h-6 w-6" />
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="px-6 py-24 text-center">
-        <div className="mx-auto max-w-2xl rounded-3xl bg-gradient-to-br from-violet-500/20 to-cyan-500/10 p-10">
-          <Zap className="mx-auto size-12 text-primary" />
-          <h2 className="mt-6 text-3xl font-black">
-            Ready to track your progress?
-          </h2>
-          <p className="mt-4 text-muted">
-            Start building better habits and achieving your goals today.
-          </p>
-          <Link href="/dashboard">
-            <Button size="lg" className="mt-8">Start your journey</Button>
-          </Link>
-        </div>
-      </section>
+          <div className="text-center">
+            <motion.h1 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-r from-white via-indigo-100 to-violet-300 bg-clip-text text-3xl font-black tracking-tight text-transparent sm:text-4xl"
+            >
+              Apex Life
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="mt-3 text-sm text-slate-400"
+            >
+              Forge habits, master skills, and conquer your goals. Start tracking your life progress today.
+            </motion.p>
+          </div>
 
-      {/* Footer */}
-      <footer className="border-t border-border/50 px-6 py-8 text-center text-sm text-muted">
-        &copy; {new Date().getFullYear()} LifeTrack. Built to help you level up.
-      </footer>
+          <motion.form
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            onSubmit={handleStartJourney}
+            className="mt-8 space-y-5"
+          >
+            <div>
+              <label 
+                htmlFor="username" 
+                className="block text-xs font-semibold tracking-wider text-slate-400 uppercase"
+              >
+                Choose a Username
+              </label>
+              <div className="relative mt-2">
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="e.g. ZenMaster"
+                  disabled={loading}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3.5 text-sm text-white placeholder-slate-500 outline-none ring-offset-slate-950 transition hover:bg-white/[0.07] focus:border-violet-500 focus:ring-2 focus:ring-violet-500/25 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  maxLength={25}
+                  required
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                  <Sparkles className="h-4 w-4 text-violet-400/80" />
+                </div>
+              </div>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={loading}
+              className="relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/35 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  Start Your Journey
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
+            </motion.button>
+          </motion.form>
+
+          {/* Footer visual indicators */}
+          <div className="mt-8 flex items-center justify-center gap-6 border-t border-white/5 pt-6 text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+            <span className="flex items-center gap-1.5"><Sparkles className="h-3 w-3 text-violet-500" /> Instant Access</span>
+            <span className="flex items-center gap-1.5"><Compass className="h-3 w-3 text-indigo-500" /> Offline Capable</span>
+          </div>
+        </motion.div>
+      </div>
     </main>
   );
 }
