@@ -39,43 +39,28 @@ export function Providers({ children }: { children: React.ReactNode }) {
     applyTheme(resolvedTheme);
 
     const supabase = createClient();
-    async function authenticateGuest() {
+    async function checkAuthAndRedirect() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          // 1. Try anonymous sign-in first (no verification, no passwords needed!)
-          const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
-          
-          if (!anonError && anonData.user) {
-            window.location.reload();
-            return;
-          }
+        const path = window.location.pathname;
+        const localUsername = typeof window !== "undefined" ? localStorage.getItem("local_username") : null;
+        
+        const hasSession = !!user;
 
-          // 2. Fallback to pre-registered guest credentials if anonymous is disabled
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: "guest@lifetrack.com",
-            password: "guestpassword123"
-          });
-          
-          if (signInError) {
-            const { error: signUpError } = await supabase.auth.signUp({
-              email: "guest@lifetrack.com",
-              password: "guestpassword123"
-            });
-            if (!signUpError) {
-              window.location.reload();
-            } else {
-              console.error("Auto-authentication could not be completed:", signUpError);
-            }
-          } else {
-            window.location.reload();
-          }
+        if (path.startsWith("/dashboard") && !hasSession && !localUsername) {
+          window.location.href = "/";
+          return;
+        }
+
+        if (path === "/" && (hasSession || localUsername)) {
+          window.location.href = "/dashboard";
+          return;
         }
       } catch (err) {
-        console.error("Auto-authentication error:", err);
+        console.error("Auth routing check error:", err);
       }
     }
-    authenticateGuest();
+    checkAuthAndRedirect();
   }, []);
 
   useEffect(() => {
